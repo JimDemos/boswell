@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Boswell — Start/Stop Capture
+Comment=Toggle local meeting transcription on this machine
+Exec=@BOSWELL_ROOT@/desktop/boswell-toggle.sh
+Icon=@BOSWELL_ROOT@/docs/boswell-quill.jpg
+Terminal=false
+Categories=AudioVideo;Recorder;
+Keywords=boswell;transcribe;transcription;meeting;record;capture;

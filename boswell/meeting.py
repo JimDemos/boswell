@@ -62,18 +62,40 @@ def list_sources():
     print(result.stdout)
 
 
+def default_sink_monitor():
+    result = subprocess.run(
+        ["pactl", "get-default-sink"],
+        capture_output=True, text=True
+    )
+    sink = result.stdout.strip()
+    return f"{sink}.monitor" if sink else None
+
+
 def find_audio_source():
     result = subprocess.run(
         ["pactl", "list", "short", "sources"],
         capture_output=True, text=True
     )
+    default = default_sink_monitor()
+    if default:
+        for line in result.stdout.strip().split("\n"):
+            parts = line.split("\t")
+            if len(parts) >= 2 and parts[1] == default:
+                return parts[1]
+    # Prefer whisper_mix if it exists
     for line in result.stdout.strip().split("\n"):
         parts = line.split("\t")
         if len(parts) >= 2 and "whisper_mix.monitor" in parts[1]:
             return parts[1]
+    # Then any running monitor
     for line in result.stdout.strip().split("\n"):
         parts = line.split("\t")
         if len(parts) >= 2 and ".monitor" in parts[1] and "RUNNING" in line:
+            return parts[1]
+    # Fall back to first available output monitor (may be SUSPENDED until audio plays)
+    for line in result.stdout.strip().split("\n"):
+        parts = line.split("\t")
+        if len(parts) >= 2 and ".monitor" in parts[1]:
             return parts[1]
     return None
 
@@ -225,6 +247,7 @@ def main():
     parser.add_argument("--mode", choices=["customer", "internal"], default="customer")
     parser.add_argument("--briefing", help="Path to meeting briefing/prep file")
     parser.add_argument("--no-advisory", action="store_true", help="Transcript only, no model calls")
+    parser.add_argument("--gpu", action="store_true", help="Use GPU for Whisper inference")
     args = parser.parse_args()
 
     if args.list_sources:
@@ -280,9 +303,11 @@ def main():
     advisory_model = config.get("model", {}).get("name", "granite3.2:8b")
     print_header(source, args.model, advisory_model, attendee_names)
 
-    print(c("dim", "  Loading STT model..."), end=" ", flush=True)
+    device = "cuda" if args.gpu else "cpu"
+    compute_type = "float16" if args.gpu else "int8"
+    print(c("dim", f"  Loading STT model ({device})..."), end=" ", flush=True)
     from faster_whisper import WhisperModel
-    whisper = WhisperModel(args.model, device="cpu", compute_type="int8")
+    whisper = WhisperModel(args.model, device=device, compute_type=compute_type)
     print(c("green", "ready."))
     print()
 

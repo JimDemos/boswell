@@ -24,7 +24,8 @@ dependencies = [
 gpu = ["ctranslate2[cuda]"]
 
 [project.urls]
-Homepage = "https://github.com/zoe-network/zoe-boswell"
+Homepage = "https://github.com/JimDemos/boswell"
+Origin = "https://github.com/zoe-network/zoe-boswell"
 
 [tool.setuptools.packages.find]
 include = ["boswell*"]

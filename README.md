@@ -52,14 +52,11 @@ All three modes run comfortably on this machine. Capture + live advisory with `m
 
 ```bash
 # Clone
-git clone https://github.com/zoe-network/zoe-boswell.git
-cd zoe-boswell
+git clone https://github.com/JimDemos/boswell.git
+cd boswell
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Copy and edit config
-cp config.example.yaml config.yaml
 
 # Check your audio sources
 python -m boswell.capture --list-sources
@@ -69,6 +66,18 @@ python -m boswell.capture
 ```
 
 That's it. Audio in, text out. The transcript appends to `transcript.log` in the current directory.
+
+### Start and stop a meeting
+
+For day-to-day use you want to start capture before a call, walk away, and stop it after. That's `boswellctl`:
+
+```bash
+./boswellctl start      # begin capturing desktop audio; returns immediately
+./boswellctl status     # running / stopped
+./boswellctl stop       # end capture — transcript is in transcript.log
+```
+
+`boswellctl start` runs on **CPU by default** (add `--gpu` only on an NVIDIA machine); on an Intel/AMD laptop just use it as-is. Pick a model with `--model` (`small.en` is snappy on a laptop CPU, `medium.en` is the accuracy default). This is the interface to reach for — the direct `python -m …` calls below are for running the individual pieces.
 
 ## Modes
 
@@ -114,18 +123,19 @@ python -m boswell.advisor --dry-run          # see prompts without calling model
 
 ## Audio routing
 
-Boswell captures from PipeWire/PulseAudio monitor sources. Out of the box, it auto-detects the first running `.monitor` source — which is usually your desktop audio output.
+Boswell captures from PipeWire/PulseAudio monitor sources. The default is the desktop default-sink monitor — the same "Desktop Audio" source OBS uses. No hardware name is required; if the desktop output device changes, Boswell follows it.
 
-### Dedicated capture sink (recommended)
+### Dedicated capture sink (optional)
 
-Create a virtual sink so Boswell captures meeting audio without affecting your speakers:
+Create a virtual sink only if you want to isolate a meeting app's audio from the rest of the desktop:
 
 ```bash
 # Create a virtual sink
 pactl load-module module-null-sink sink_name=whisper_mix sink_properties=device.description="Whisper-Mix"
 
 # Route your meeting app's audio to this sink (use pavucontrol or pw-link)
-# Boswell auto-detects whisper_mix.monitor when it exists
+# Then ask for it explicitly:
+python -m boswell.capture --source whisper_mix.monitor
 ```
 
 ### Verify sources

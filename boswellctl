@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="/tmp/zoe-boswell-capture.env"
+DEFAULT_SOURCE="default"
+
+FILE=""
+SOURCE="$DEFAULT_SOURCE"
+MODEL="medium.en"
+CHUNK="24"
+GPU=0
+CHECKS=0
+
+usage() {
+  cat <<'EOF'
+Usage: ./boswellctl <command> [options]
+
+Commands:
+  start                 Start Boswell capture
+  stop                  Stop Boswell capture gracefully, then force if wedged
+  restart               Stop then start
+  status                Show capture state
+
+Options for start/restart:
+  --file PATH           Transcript path (default: ./transcript.log)
+  --source NAME         PulseAudio source (default: desktop default-sink monitor)
+  --model NAME          Whisper model (default: medium.en)
+  --chunk SECONDS       Chunk size (default: 24)
+  --gpu                 Use GPU (default: CPU)
+  --checks              Run capture preflight checks (default: skip for non-interactive start)
+EOF
+}
+
+load_env() {
+  [[ -f "$ENV_FILE" ]] && source "$ENV_FILE" || true
+}
+
+resolve_source() {
+  if [[ "$SOURCE" == "default" ]]; then
+    local sink
+    sink="$(pactl get-default-sink)"
+    SOURCE="${sink}.monitor"
+  fi
+}
+
+is_capture_pid() {
+  local pid="${1:-}"
+  [[ -n "$pid" ]] || return 1
+  [[ -r "/proc/$pid/cmdline" ]] || return 1
+  tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q "boswell.capture"
+}
+
+stop_pid_tree() {
+  local pid="$1"
+  local children=""
+  is_capture_pid "$pid" || return 0
+  children="$(pgrep -P "$pid" 2>/dev/null || true)"
+  kill -TERM "$pid" 2>/dev/null || true
+  for _ in $(seq 1 140); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.25
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+  for child in $children; do
+    kill -TERM "$child" 2>/dev/null || true
+  done
+  sleep 1
+  for child in $children; do
+    if kill -0 "$child" 2>/dev/null; then
+      kill -KILL "$child" 2>/dev/null || true
+    fi
+  done
+}
+
+stop_any() {
+  load_env
+  if is_capture_pid "${PID:-}"; then
+    stop_pid_tree "$PID"
+  fi
+  rm -f "$ENV_FILE"
+}
+
+status() {
+  load_env
+  if is_capture_pid "${PID:-}"; then
+    echo "running pid=$PID file=${FILE:-unknown} source=${SOURCE:-unknown}"
+    return 0
+  fi
+  echo "stopped"
+  return 3
+}
+
+start() {
+  if status >/dev/null 2>&1; then
+    status
+    return 0
+  fi
+  stop_any
+  resolve_source
+  if ! pactl list short sources | awk '{print $2}' | grep -Fxq "$SOURCE"; then
+    echo "missing source: $SOURCE" >&2
+    pactl list short sources >&2 || true
+    return 2
+  fi
+  if [[ -z "$FILE" ]]; then
+    FILE="transcript.log"
+  fi
+  mkdir -p "$(dirname "$FILE")"
+  local args=(--source "$SOURCE" --file "$FILE" --model "$MODEL" --chunk "$CHUNK")
+  if [[ "$GPU" == "1" ]]; then
+    args+=(--gpu)
+  fi
+  if [[ "$CHECKS" != "1" ]]; then
+    args+=(--skip-checks)
+  fi
+  PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" nohup python3 -m boswell.capture "${args[@]}" >> "$ROOT/boswell-capture.log" 2>&1 &
+  local pid=$!
+  sleep 2
+  if ! is_capture_pid "$pid"; then
+    echo "boswell failed to start; see $ROOT/boswell-capture.log" >&2
+    return 1
+  fi
+  local parec_pid
+  parec_pid="$(pgrep -P "$pid" parec 2>/dev/null | head -1 || true)"
+  {
+    printf 'PID=%q\n' "$pid"
+    printf 'PAREC=%q\n' "$parec_pid"
+    printf 'FILE=%q\n' "$FILE"
+    printf 'SOURCE=%q\n' "$SOURCE"
+  } > "$ENV_FILE"
+  echo "started pid=$pid file=$FILE source=$SOURCE"
+}
+
+cmd="${1:-status}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --file) FILE="$2"; shift 2 ;;
+    --source) SOURCE="$2"; shift 2 ;;
+    --model) MODEL="$2"; shift 2 ;;
+    --chunk) CHUNK="$2"; shift 2 ;;
+    --gpu) GPU=1; shift ;;
+    --checks) CHECKS=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+case "$cmd" in
+  start) start ;;
+  stop) stop_any; echo "stopped" ;;
+  restart) stop_any; start ;;
+  status) status ;;
+  -h|--help|help) usage ;;
+  *) echo "unknown command: $cmd" >&2; usage >&2; exit 2 ;;
+esac

@@ -243,6 +243,8 @@
 
 <p>The real trick isn't the model. It's context. Boswell knows who's on the call, what the account history is, and what you're trying to accomplish &mdash; before the first word is spoken. That's what turns a transcript into a field report. Johnson had plenty of people in the room. Only one of them was paying attention on purpose.</p>
 
+<p>That context doesn't just shape the report &mdash; it shapes the transcription itself. Whisper accepts an <code>initial_prompt</code> parameter: a block of text that primes the model before audio starts. Boswell uses this to feed attendee names, product vocabulary, acronyms, and account-specific terminology directly into the speech recognition pass. When your meeting is about <em>SAP Edge Integration Cell on Red Hat OpenShift</em>, you don't want the transcriber guessing at every proper noun. Boswell already knows the words before anyone says them.</p>
+
 <h2>Head to Head</h2>
 
 <p>We tested it head-to-head against Google Gemini's built-in meeting notes on a recorded call, then had three open-source models judge both outputs blind across six criteria.</p>

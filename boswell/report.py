@@ -58,11 +58,12 @@ def generate_report(transcript: str, meeting_context: str, config: dict, api_key
     model = config.get("report", {}).get("model",
             config.get("model", {}).get("name", "granite3.2:8b"))
 
+    max_chars = config.get("report", {}).get("max_transcript_chars", 400000)
     user_msg = f"""MEETING CONTEXT:
 {meeting_context}
 
 FULL TRANSCRIPT:
-{transcript[:12000]}
+{transcript[:max_chars]}
 
 Generate the field report."""
 

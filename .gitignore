@@ -18,3 +18,7 @@ venv/
 *.wav
 *.mp3
 *.flac
+
+# runtime artifacts
+boswell-capture.log
+boswell-transcripts/

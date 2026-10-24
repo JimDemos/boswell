@@ -41,8 +41,18 @@ def list_sources():
     print(result.stdout)
 
 
+def default_sink_monitor():
+    result = subprocess.run(
+        ["pactl", "get-default-sink"],
+        capture_output=True, text=True
+    )
+    sink = result.stdout.strip()
+    return f"{sink}.monitor" if sink else None
+
+
 def find_monitor_source():
-    """Find the first running .monitor source, or fall back to first available."""
+    """Use the desktop default-sink monitor first, like OBS Desktop Audio."""
+    default = default_sink_monitor()
     result = subprocess.run(
         ["pactl", "list", "short", "sources"],
         capture_output=True, text=True
@@ -53,6 +63,8 @@ def find_monitor_source():
         if len(parts) >= 2 and ".monitor" in parts[1]:
             monitors.append((parts[1], "RUNNING" in line))
 
+    if default and any(name == default for name, _ in monitors):
+        return default
     for name, running in monitors:
         if running:
             return name
