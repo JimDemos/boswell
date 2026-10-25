@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-ENV_FILE="/tmp/zoe-boswell-capture.env"
+ENV_FILE="/tmp/boswell-capture.env"
 DEFAULT_SOURCE="default"
 
 FILE=""

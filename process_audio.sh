@@ -18,7 +18,7 @@ if [ ! -f "$AUDIO" ]; then
   exit 1
 fi
 
-cd ~/zoe-boswell
+cd "$(dirname "$0")"
 
 DATE=$(date +%Y-%m-%d)
 SAFE_TITLE=$(echo "$TITLE" | tr ' /' '--' | tr -cd 'A-Za-z0-9-')
@@ -44,5 +44,5 @@ else
 fi
 
 echo
-echo "Done. Outputs in ~/zoe-boswell/field-reports/"
-ls -lt ~/zoe-boswell/field-reports/ | head -5
+echo "Done. Outputs in field-reports/"
+ls -lt field-reports/ | head -5
